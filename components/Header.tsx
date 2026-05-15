@@ -56,6 +56,16 @@ export default function Header() {
               >
                 스캔 및 관리
               </Link>
+              <Link
+                href="/scans"
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  pathname.includes("/scans")
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                스캔 목록
+              </Link>
             </nav>
           </div>
 
