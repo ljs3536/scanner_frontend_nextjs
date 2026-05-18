@@ -1,5 +1,5 @@
-# Node 18 환경
-FROM node:18-alpine
+# 💡 Node 18에서 20으로 버전 업그레이드!
+FROM node:20-alpine
 
 WORKDIR /app
 
