@@ -27,7 +27,7 @@ export default function AdminUserManagementPage() {
   // 새 계정 생성 폼 토글 및 상태 관리
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("USER");
   const [showPassword, setShowPassword] = useState(false);
@@ -54,16 +54,21 @@ export default function AdminUserManagementPage() {
   // 계정 생성 서브밋 핸들러
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !name || !password)
+    if (!email || !userId || !password)
       return alert("모든 필드를 입력해 주세요.");
 
     try {
-      await api.post("/admin/users", { email, name, password, role });
+      await api.post("/admin/users", {
+        email: email,
+        user_id: userId,
+        password: password,
+        role: role,
+      });
       alert(`성공적으로 ${name} 계정이 발급되었습니다.`);
 
       // 폼 초기화 및 리로드
       setEmail("");
-      setName("");
+      setUserId("");
       setPassword("");
       setRole("USER");
       setShowForm(false);
@@ -169,12 +174,12 @@ export default function AdminUserManagementPage() {
             <form onSubmit={handleCreateAccount} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  사용자 성명
+                  사용자 아이디
                 </label>
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value)}
                   placeholder="홍길동"
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 transition font-sans"
                 />

@@ -18,10 +18,18 @@ import {
   Code2,
   FileText,
   CheckCircle,
+  Cpu,
 } from "lucide-react";
-import api, { fetchAiExplanation, fetchAiFix } from "@/lib/api";
+import api, {
+  fetchAiExplanation,
+  fetchAiFix,
+  fetchOpenAiExplanation,
+  fetchOpenAiFix,
+} from "@/lib/api";
 
 type AiTaskMode = "explain" | "fix";
+
+type AiProvider = "core" | "openai";
 
 const COLORS = {
   CRITICAL: {
@@ -70,10 +78,16 @@ export default function AdvancedScanReportPage() {
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
 
   const [aiActiveTab, setAiActiveTab] = useState<AiTaskMode>("explain");
+
+  const [selectedProvider, setSelectedProvider] = useState<AiProvider>("core");
+
   const [aiResponses, setAiResponses] = useState<{
-    explain: string | null;
-    fix: string | null;
-  }>({ explain: null, fix: null });
+    core: { explain: string | null; fix: string | null };
+    openai: { explain: string | null; fix: string | null };
+  }>({
+    core: { explain: null, fix: null },
+    openai: { explain: null, fix: null },
+  });
 
   useEffect(() => {
     if (!scanId) return;
@@ -95,8 +109,10 @@ export default function AdvancedScanReportPage() {
   }, [scanId]);
 
   useEffect(() => {
-    // 이슈 바뀔 때마다 기존 AI 누적 데이터 초기화
-    setAiResponses({ explain: null, fix: null });
+    setAiResponses({
+      core: { explain: null, fix: null },
+      openai: { explain: null, fix: null },
+    });
   }, [selectedIssueId]);
 
   // 데이터 포맷 보정용 내부 마크다운 파서 헬퍼 함수
@@ -162,39 +178,73 @@ export default function AdvancedScanReportPage() {
     setIsAiLoading(true);
     setAiActiveTab(task);
 
+    const requestPayload = {
+      vulnerability_type: activeIssue.issue_title,
+      cwe_id: activeIssue.cwe_id,
+      severity: activeIssue.severity,
+      file_path: activeIssue.file_path,
+      line_number: activeIssue.line_number,
+      code_snippet: activeIssue.code_snippet,
+      framework: reportData.metadata.framework_detected || "Python",
+      language: activeIssue.language || "python",
+    };
+
     try {
-      if (task === "explain") {
-        const result = await fetchAiExplanation({
-          vulnerability_type: activeIssue.issue_title,
-          cwe_id: activeIssue.cwe_id,
-          severity: activeIssue.severity,
-          file_path: activeIssue.file_path,
-          line_number: activeIssue.line_number,
-          code_snippet: activeIssue.code_snippet,
-          framework: reportData.metadata.framework_detected || "Python",
-          language: activeIssue.language || "python",
-        });
-        const content = result.explanation || result.response || result.content;
-        setAiResponses((prev) => ({ ...prev, explain: content }));
+      if (selectedProvider === "core") {
+        // [기존 분석기 내장 모델 작동 파트]
+        if (task === "explain") {
+          const res = await fetchAiExplanation(requestPayload);
+          const content = res.explanation || res.response || res.content;
+          setAiResponses((prev) => ({
+            ...prev,
+            core: { ...prev.core, explain: content },
+          }));
+        } else {
+          const res = await fetchAiFix({
+            ...requestPayload,
+            preserve_functionality: true,
+          });
+          const content = res.fix_code || res.response || res.content;
+          setAiResponses((prev) => ({
+            ...prev,
+            core: { ...prev.core, fix: content },
+          }));
+        }
       } else {
-        const result = await fetchAiFix({
-          vulnerability_type: activeIssue.issue_title,
-          cwe_id: activeIssue.cwe_id,
-          code_snippet: activeIssue.code_snippet || activeIssue.description,
-          language: activeIssue.language || "python",
-          preserve_functionality: true,
-        });
-        const content = result.fix_code || result.response || result.content;
-        setAiResponses((prev) => ({ ...prev, fix: content }));
+        // [신규 OpenAI 외부 결합 모델 작동 파트]
+        if (task === "explain") {
+          const res = await fetchOpenAiExplanation(requestPayload);
+          const content = res.explanation || res.response || res.content;
+          setAiResponses((prev) => ({
+            ...prev,
+            openai: { ...prev.openai, explain: content },
+          }));
+        } else {
+          const res = await fetchOpenAiFix({
+            ...requestPayload,
+            preserve_functionality: true,
+          });
+          const content = res.fix_code || res.response || res.content;
+          setAiResponses((prev) => ({
+            ...prev,
+            openai: { ...prev.openai, fix: content },
+          }));
+        }
       }
     } catch (error) {
       console.error(error);
-      alert("AI 솔루션 어드바이저 데이터 연동 중 오류가 발생했습니다.");
+      alert(
+        `${selectedProvider === "core" ? "내장 분석기" : "OpenAI"} 어드바이저 처리 중 통신 규격 오류가 발생했습니다.`,
+      );
     } finally {
-      setIsLoading(false);
       setIsAiLoading(false);
     }
   };
+
+  // 현재 선택된 엔진과 탭 조건에 부합하는 활성 데이터 추출용 유틸 변수
+  const currentActiveContent = useMemo(() => {
+    return aiResponses[selectedProvider][aiActiveTab];
+  }, [aiResponses, selectedProvider, aiActiveTab]);
 
   // 필터링된 이슈 필터
   const filteredIssues = useMemo(() => {
@@ -333,16 +383,13 @@ export default function AdvancedScanReportPage() {
         <div className="w-2/3 flex flex-col overflow-y-auto bg-slate-50/30">
           {activeIssue ? (
             <div className="p-6 space-y-6">
-              {/* 우측 메타 헤더 벤치 가이드 */}
-              <div className="border-b border-slate-200 pb-4 flex justify-between items-start">
+              {/* 우측 판넬 헤더 스펙 */}
+              <div className="border-b border-slate-200 pb-4 flex justify-between items-end">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <h2 className="text-xl font-extrabold text-slate-900">
                       {activeIssue.type_ko || activeIssue.issue_title}
                     </h2>
-                    <span className="text-xs font-mono text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                      {activeIssue.analyzer || "core-engine"}
-                    </span>
                   </div>
                   <p className="text-xs font-mono text-slate-400">
                     파일 경로:{" "}
@@ -350,15 +397,34 @@ export default function AdvancedScanReportPage() {
                       {activeIssue.file_path}
                     </span>
                   </p>
+
+                  {/* 💡 A. 모델 선택 엔진 세그먼트 스위치 컴포넌트 추가 */}
+                  <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg text-[11px] font-bold mt-3 w-fit border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProvider("core")}
+                      className={`px-2.5 py-1 rounded-md transition ${selectedProvider === "core" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                    >
+                      <Cpu className="w-3 h-3 inline mr-1" /> 분석기 내장 모델
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProvider("openai")}
+                      className={`px-2.5 py-1 rounded-md transition ${selectedProvider === "openai" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                    >
+                      <Sparkles className="w-3 h-3 inline mr-1 text-indigo-500" />{" "}
+                      OpenAI GPT-4o
+                    </button>
+                  </div>
                 </div>
 
-                {/* 💡 개편된 듀얼 AI 액션 유도 실행 토글 버튼 그룹 */}
+                {/* 💡 B. 리스너 액션 버튼 호출 바인딩 */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleExecuteAiAdvisory("explain")}
                     disabled={isAiLoading}
                     className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition shadow-sm ${
-                      aiActiveTab === "explain" && aiResponses.explain
+                      aiActiveTab === "explain" && currentActiveContent
                         ? "bg-purple-600 text-white border-purple-600"
                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                     }`}
@@ -370,7 +436,7 @@ export default function AdvancedScanReportPage() {
                     onClick={() => handleExecuteAiAdvisory("fix")}
                     disabled={isAiLoading}
                     className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition shadow-sm ${
-                      aiActiveTab === "fix" && aiResponses.fix
+                      aiActiveTab === "fix" && currentActiveContent
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                     }`}
@@ -381,36 +447,52 @@ export default function AdvancedScanReportPage() {
                 </div>
               </div>
 
-              {/* 💡 개편된 렌더링 컨테이너: 날것의 문자열 파싱 패널 */}
-              {(isAiLoading || aiResponses.explain || aiResponses.fix) && (
-                <div className="bg-gradient-to-br from-purple-50/50 to-indigo-50/40 border border-purple-100 rounded-2xl p-5 space-y-3 shadow-sm">
-                  <div className="flex items-center justify-between border-b border-purple-100/60 pb-2">
-                    <div className="flex items-center gap-2 text-purple-800 font-extrabold text-sm">
-                      <Brain className="w-4 h-4 animate-pulse" />
+              {/* 💡 C. 공통 AI 출력 박스 패널 연동 */}
+              {(isAiLoading || currentActiveContent) && (
+                <div
+                  className={`border rounded-2xl p-5 space-y-3 shadow-sm transition-all bg-gradient-to-br ${
+                    selectedProvider === "openai"
+                      ? "from-indigo-50/50 to-purple-50/30 border-indigo-100"
+                      : "from-purple-50/50 to-slate-50/30 border-purple-100"
+                  }`}
+                >
+                  <div className="flex items-center justify-between border-b pb-2 border-slate-100">
+                    <div className="flex items-center gap-2 font-extrabold text-sm text-slate-800">
+                      <Brain
+                        className={`w-4 h-4 ${selectedProvider === "openai" ? "text-indigo-600 animate-pulse" : "text-purple-600"}`}
+                      />
                       <span>
+                        {selectedProvider === "core"
+                          ? "내장 분석기 AI 어드바이저"
+                          : "OpenAI GPT-4o 시큐어 엔진"}{" "}
+                        -{" "}
                         {aiActiveTab === "explain"
-                          ? "AI 가이드 취약점 보조 브리핑"
-                          : "AI 제안 솔루션 시큐어 코딩"}
+                          ? "진단 브리핑"
+                          : "패치 코드"}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] bg-white text-purple-700 px-2 py-0.5 rounded-full border border-purple-200 font-bold">
-                      <Sparkles className="w-2.5 h-2.5" /> Live Engine
-                    </div>
+                    <span className="text-[10px] bg-white text-slate-500 px-2 py-0.5 rounded-full border border-slate-200 font-bold uppercase tracking-wider">
+                      {selectedProvider} mode
+                    </span>
                   </div>
 
                   {isAiLoading ? (
                     <div className="py-8 flex flex-col items-center justify-center gap-3 text-slate-400 text-xs">
-                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
-                      <p className="font-medium text-purple-600 animate-pulse">
-                        지능형 분석기 솔루션 매트릭스를 연산하고 있습니다...
+                      <div
+                        className={`h-6 w-6 animate-spin rounded-full border-2 border-t-transparent ${selectedProvider === "openai" ? "border-indigo-600" : "border-purple-600"}`}
+                      />
+                      <p
+                        className={`font-medium animate-pulse ${selectedProvider === "openai" ? "text-indigo-600" : "text-purple-600"}`}
+                      >
+                        {selectedProvider === "core"
+                          ? "온프레미스 분석 코어를 연산 중입니다..."
+                          : "OpenAI 엔터프라이즈 컴플라이언스를 점검 중입니다..."}
                       </p>
                     </div>
                   ) : (
                     <div className="bg-white/90 border border-white p-5 rounded-xl shadow-inner space-y-1 font-sans">
-                      {/* 💡 흉물스러운 날것의 마크다운 대신 가공된 엘리먼트 배열을 실시간 인쇄 */}
-                      {aiActiveTab === "explain"
-                        ? renderAiFormattedContent(aiResponses.explain)
-                        : renderAiFormattedContent(aiResponses.fix)}
+                      {/* 정밀 마크다운 포맷 렌더러에 매핑 콘텐츠 전송 */}
+                      {renderAiFormattedContent(currentActiveContent)}
                     </div>
                   )}
                 </div>

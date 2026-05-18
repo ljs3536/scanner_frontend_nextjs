@@ -2,7 +2,7 @@ import axios from "axios";
 
 // FastAPI 백엔드 주소 기본 설정
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: "http://192.168.1.103:8000/api",
 });
 
 // 요청(Request)을 보내기 직전에 가로채서 JWT 토큰을 헤더에 심어주는 로직
@@ -150,6 +150,20 @@ export interface LlmFixRequest {
 // AI 패치 코드 가져오기 API 추가
 export async function fetchAiFix(payload: LlmFixRequest): Promise<any> {
   const response = await api.post("/llm/fix", payload);
+  return response.data;
+}
+
+// OpenAI 기반 취약점 진단 설명 요청
+export async function fetchOpenAiExplanation(
+  payload: LlmExplainRequest,
+): Promise<any> {
+  const response = await api.post("/ai/explain", payload);
+  return response.data;
+}
+
+// OpenAI 기반 시큐어 코딩 패치 요청
+export async function fetchOpenAiFix(payload: LlmFixRequest): Promise<any> {
+  const response = await api.post("/ai/fix", payload);
   return response.data;
 }
 
