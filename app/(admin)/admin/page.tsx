@@ -60,7 +60,7 @@ export default function AdminDashboardPage() {
         </div>
         {/* 기존에 만들었던 상세 계정 관리 페이지로 이동하는 버튼 링크 */}
         <button
-          onClick={() => router.push("/admin/users-manage")} // 경로에 맞게 조율 가능
+          onClick={() => router.push("/admin/register")} // 경로에 맞게 조율 가능
           className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-xl hover:bg-indigo-100 transition"
         >
           계정 발급 및 권한 설정 <ArrowRight className="w-3.5 h-3.5" />

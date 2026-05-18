@@ -21,16 +21,24 @@ export default function LoginPage() {
       const response = await api.post("/auth/login", {
         user_id: userId,
         password: password,
-        email: "demo@example.com", // 현재 백엔드 스키마상 필요하므로 임시값 전송 (나중에 분리 필요)
+        email: "demo@example.com",
       });
 
-      // 2. 토큰을 로컬 스토리지에 저장
+      // 2. 토큰 및 권한 정보를 로컬 스토리지에 저장
       localStorage.setItem("access_token", response.data.access_token);
       localStorage.setItem("user_id", response.data.user_id);
       localStorage.setItem("role", response.data.role);
 
-      // 3. 대시보드로 이동
-      router.push("/dashboard");
+      // 💡 3. 권한(Role)에 따른 동적 페이지 이동 처리
+      const userRole = response.data.role?.toUpperCase();
+
+      if (userRole === "ADMIN") {
+        // 관리자는 전체 통계 메인 관제 화면으로 이동
+        router.push("/admin");
+      } else {
+        // 일반 사용자는 개인 스캔 대시보드로 이동
+        router.push("/dashboard");
+      }
     } catch (error: any) {
       // 에러 처리
       if (error.response?.status === 401) {
