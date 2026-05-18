@@ -119,4 +119,38 @@ export interface SbomThreatResponse {
   findings: SbomThreatFinding[];
 }
 
+export interface LlmExplainRequest {
+  vulnerability_type: string;
+  cwe_id?: string | null;
+  severity: string;
+  file_path: string;
+  line_number: number;
+  code_snippet?: string | null;
+  data_flow?: string | null;
+  framework?: string | null;
+  language?: string | null;
+  include_remediation?: boolean;
+}
+
+export async function fetchAiExplanation(
+  payload: LlmExplainRequest,
+): Promise<any> {
+  const response = await api.post("/llm/explain", payload);
+  return response.data;
+}
+
+export interface LlmFixRequest {
+  vulnerability_type: string;
+  cwe_id?: string | null;
+  code_snippet?: string | null;
+  language?: string | null;
+  preserve_functionality?: boolean;
+}
+
+// AI 패치 코드 가져오기 API 추가
+export async function fetchAiFix(payload: LlmFixRequest): Promise<any> {
+  const response = await api.post("/llm/fix", payload);
+  return response.data;
+}
+
 export default api;
