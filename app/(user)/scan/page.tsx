@@ -17,6 +17,7 @@ export default function EnhancedScanPage() {
 
   // [파일 업로드 모드] 전용 상태
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   // [코드 직접 입력 모드] 전용 상태
   const [pastedCode, setPastedCode] = useState("");
@@ -28,6 +29,27 @@ export default function EnhancedScanPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFiles(Array.from(e.target.files));
+    }
+  };
+
+  // 드래그 앤 드롭 이벤트 핸들러 3종
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); // 브라우저가 새 탭에서 파일을 열어버리는 기본 동작 방지
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    // 드래그해서 떨어뜨린 파일 데이터 추출
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setSelectedFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -117,7 +139,18 @@ export default function EnhancedScanPage() {
         <form onSubmit={handleExecuteScan} className="space-y-6">
           {/* 탭 분기에 따른 동적 렌더링 카드 바디 */}
           {activeTab === "file" ? (
-            <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center hover:border-blue-400 bg-slate-50/50 transition-colors">
+            <div
+              // 💡 3개의 핸들러를 박스 컨테이너에 바인딩
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              // 💡 isDragging 상태에 따라 클래스 동적 변경
+              className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors ${
+                isDragging
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-slate-200 bg-slate-50/50 hover:border-blue-400"
+              }`}
+            >
               <input
                 type="file"
                 id="multi-file-picker"
@@ -129,7 +162,11 @@ export default function EnhancedScanPage() {
                 htmlFor="multi-file-picker"
                 className="cursor-pointer block"
               >
-                <div className="text-5xl mb-4">📁</div>
+                <div
+                  className={`text-5xl mb-4 transition-transform ${isDragging ? "scale-110" : ""}`}
+                >
+                  📁
+                </div>
                 {selectedFiles.length > 0 ? (
                   <div className="text-blue-600 font-bold text-base">
                     {selectedFiles[0].name} 포함 총 {selectedFiles.length}개
