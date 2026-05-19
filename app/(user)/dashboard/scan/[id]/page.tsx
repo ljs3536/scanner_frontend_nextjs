@@ -179,6 +179,7 @@ export default function AdvancedScanReportPage() {
     setAiActiveTab(task);
 
     const requestPayload = {
+      issue_seq: activeIssue.issue_seq,
       vulnerability_type: activeIssue.issue_title,
       cwe_id: activeIssue.cwe_id,
       severity: activeIssue.severity,
@@ -231,11 +232,16 @@ export default function AdvancedScanReportPage() {
           }));
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert(
-        `${selectedProvider === "core" ? "내장 분석기" : "OpenAI"} 어드바이저 처리 중 통신 규격 오류가 발생했습니다.`,
-      );
+      // 💡 429 에러(Rate Limit) 방어 로직 추가
+      if (error.response?.status === 429) {
+        alert("AI 분석 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        alert(
+          `${selectedProvider === "core" ? "내장 분석기" : "OpenAI"} 어드바이저 처리 중 통신 규격 오류가 발생했습니다.`,
+        );
+      }
     } finally {
       setIsAiLoading(false);
     }
@@ -422,7 +428,7 @@ export default function AdvancedScanReportPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleExecuteAiAdvisory("explain")}
-                    disabled={isAiLoading}
+                    disabled={false}
                     className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition shadow-sm ${
                       aiActiveTab === "explain" && currentActiveContent
                         ? "bg-purple-600 text-white border-purple-600"
@@ -434,7 +440,7 @@ export default function AdvancedScanReportPage() {
                   </button>
                   <button
                     onClick={() => handleExecuteAiAdvisory("fix")}
-                    disabled={isAiLoading}
+                    disabled={false}
                     className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition shadow-sm ${
                       aiActiveTab === "fix" && currentActiveContent
                         ? "bg-indigo-600 text-white border-indigo-600"
