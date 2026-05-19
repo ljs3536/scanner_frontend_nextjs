@@ -2,7 +2,7 @@ import axios from "axios";
 
 // FastAPI 백엔드 주소 기본 설정
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: "http://192.168.1.103:8000/api",
 });
 
 // 요청(Request)을 보내기 직전에 가로채서 JWT 토큰을 헤더에 심어주는 로직
