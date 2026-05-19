@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   PieChart,
@@ -9,11 +9,7 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Legend,
 } from "recharts";
 import {
   AlertTriangle,
@@ -21,6 +17,9 @@ import {
   ShieldAlert,
   Download,
   ArrowLeft,
+  FileText,
+  Info,
+  Layers,
 } from "lucide-react";
 import {
   downloadSbomCycloneDx,
@@ -31,7 +30,7 @@ import {
   type SbomThreatResponse,
 } from "@/lib/api";
 
-// 심각도별 컬러 파레트 (레퍼런스 이미지 느낌)
+// 심각도별 컬러 파레트
 const COLORS = {
   CRITICAL: "#ef4444", // Red
   HIGH: "#f97316", // Orange
@@ -40,266 +39,338 @@ const COLORS = {
   INFO: "#94a3b8", // Slate
 };
 
+interface ComponentsItem {
+  name: string;
+  version: string;
+  type: string;
+  licenses: string;
+}
 export default function SbomDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [summary, setSummary] = useState<SbomSummary | null>(null);
+
   const [threats, setThreats] = useState<SbomThreatResponse | null>(null);
   const [document, setDocument] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const components = document?.components || [];
 
   useEffect(() => {
-    if (!id) return;
-    const loadData = async () => {
+    const fetchData = async () => {
       try {
-        const [sumData, thrData, docData] = await Promise.all([
-          getSbomSummary(id),
-          getSbomThreats(id),
-          getSbom(id),
+        const [sbomData, summaryData, threatsData] = await Promise.all([
+          getSbom(id), // 메인 마스터 스펙 정보
+          getSbomSummary(id), // 컴포넌트 목록 명세
+          getSbomThreats(id), // 💡 취약점 연계 데이터 (findings 포함)
         ]);
-        setSummary(sumData);
-        setThreats(thrData);
-        setDocument(docData);
+        // 데이터 구조 보정 매핑
+        setDocument(sbomData);
+        setSummary(summaryData);
+        setThreats(threatsData);
       } catch (error) {
-        console.error("데이터 로드 실패:", error);
+        console.error("SBOM 데이터 로딩 실패:", error);
       } finally {
         setIsLoading(false);
       }
     };
-    loadData();
+    if (id) fetchData();
   }, [id]);
 
-  // 차트용 데이터 가공
-  const severityData = useMemo(() => {
-    if (!threats) return [];
+  // 💡 원형 그래프(PieChart)용 데이터 가공 프로세스
+  const pieChartData = useMemo(() => {
+    if (!threats?.summary?.severity_totals) return [];
     return Object.entries(threats.summary.severity_totals)
-      .filter(([_, count]) => count > 0)
-      .map(([name, value]) => ({ name, value }));
+      .map(([name, value]) => ({ name, value: value as number }))
+      .filter((item) => item.value > 0); // 0개인 취약점은 그래프에서 제외
   }, [threats]);
-
-  const components = document?.components || [];
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center text-slate-500">
-        데이터를 분석 중입니다...
+      <div className="flex h-96 items-center justify-center text-slate-400 font-medium">
+        공급망 자산 및 SBOM 명세를 분석 중입니다...
       </div>
     );
   }
-  if (!summary || !threats)
-    return (
-      <div className="p-8 text-red-500">데이터를 불러오지 못했습니다.</div>
-    );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* 1. 상단 헤더 영역 */}
-      <div className="flex justify-between items-end border-b border-slate-200 pb-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Link href="/scans" className="text-slate-400 hover:text-slate-600">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-              정상
-            </span>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800">
-            {components[0]?.name || summary.ecosystems[0] || "Project"}
-          </h1>
-          <div className="flex gap-4 text-sm text-slate-500 mt-2">
-            <span>
-              스캔 ID:{" "}
-              <span className="text-slate-700 font-medium">
-                {summary.scan_id || "N/A"}
-              </span>
-            </span>
-            <span>
-              형식:{" "}
-              <span className="text-slate-700 font-medium">
-                CycloneDX {summary.spec_version}
-              </span>
-            </span>
+    <div className="space-y-6 max-w-[1600px] mx-auto px-2">
+      {/* 1. 상단 타이틀 네비게이션 바 */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push("/scans")}
+            className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-600" />
+              SBOM 공급망 명세서 상세보기
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5 font-mono">
+              Target ID: {id} | 데이터 포맷: CycloneDX (JSON)
+            </p>
           </div>
         </div>
+
         <button
           onClick={() => downloadSbomCycloneDx(id)}
-          className="flex items-center gap-2 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition font-medium text-sm"
+          className="flex items-center gap-2 text-xs font-bold bg-slate-900 text-white px-4 py-2.5 rounded-xl hover:bg-slate-800 transition shadow-sm"
         >
-          <Download className="w-4 h-4" /> 내보내기 (JSON)
+          <Download className="w-4 h-4" />
+          CycloneDX 내보내기
         </button>
       </div>
 
-      {/* 2. 핵심 요약 카드 (Metrics) */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-500 mb-2">
-            <Box className="w-4 h-4" /> 구성 요소
-          </div>
-          <div className="text-3xl font-bold text-slate-800">
-            {summary.component_count}
-            <span className="text-sm font-normal text-slate-500 ml-1">
-              전체
-            </span>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-500 mb-2">
-            <ShieldAlert className="w-4 h-4" /> 취약점 (CVE)
-          </div>
-          <div className="text-3xl font-bold text-slate-800">
-            {threats.summary.finding_count}
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-500 mb-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" /> 위협 점수
-          </div>
-          <div className="text-3xl font-bold text-amber-600">
-            {threats.summary.risk_score}
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-500 mb-2">
-            라이선스 종류
-          </div>
-          <div className="text-3xl font-bold text-emerald-600">
-            {summary.license_count || 0}
-          </div>
-        </div>
-      </div>
+      {/* 2. 메인 대시보드 스플릿 그리드 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 💻 왼쪽 칼럼: 구성 현황 스펙 가이드 + 💡 [신규] 취약점 연계 원형 그래프 */}
+        <div className="space-y-6">
+          {/* [위] 구성 현황 마스터 카드 */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Box className="w-4 h-4 text-slate-500" /> 구성 현황 개요
+            </h3>
 
-      {/* 3. 통계 차트 영역 */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* 심각도 분포 도넛 차트 */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">위협도 분포</h3>
-          <div className="h-64 flex items-center">
-            <ResponsiveContainer width="50%" height="100%">
-              <PieChart>
-                <Pie
-                  data={severityData}
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {severityData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={
-                        COLORS[entry.name as keyof typeof COLORS] || COLORS.INFO
-                      }
-                    />
-                  ))}
-                </Pie>
-                <RechartsTooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="w-1/2 space-y-3">
-              {severityData.map((entry) => (
-                <div
-                  key={entry.name}
-                  className="flex justify-between items-center text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{
-                        backgroundColor:
-                          COLORS[entry.name as keyof typeof COLORS] ||
-                          COLORS.INFO,
-                      }}
-                    ></div>
-                    <span className="text-slate-600 font-medium">
-                      {entry.name}
-                    </span>
-                  </div>
-                  <span className="font-bold text-slate-800">
-                    {entry.value}
-                  </span>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+                <span className="text-xs text-slate-400 block mb-1 font-medium">
+                  총 컴포넌트수
+                </span>
+                <span className="text-2xl font-black text-slate-800 font-mono">
+                  {components.length}{" "}
+                  <span className="text-sm font-normal text-slate-500">개</span>
+                </span>
+              </div>
+              <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 text-center">
+                <span className="text-xs text-red-500 block mb-1 font-bold">
+                  보안 위협 카운트
+                </span>
+                <span className="text-2xl font-black text-red-600 font-mono">
+                  {threats?.summary?.finding_count || 0}{" "}
+                  <span className="text-sm font-normal text-red-400">건</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="divide-y divide-slate-100 text-xs pt-2">
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-400">명세서 버전</span>
+                <span className="font-mono font-semibold text-slate-700">
+                  v{summary?.spec_version || "1"}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-400">스캔 매핑 ID</span>
+                <span className="font-mono font-semibold text-blue-600">
+                  {threats?.scan_id || "-"}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-400">위험도 스코어</span>
+                <span className="font-bold text-red-600">
+                  {threats?.summary?.risk_score || 0} / 100
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* 핵심 시사점 (레퍼런스 반영) */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">
-            AI 보안 분석 브리핑
-          </h3>
-          <div className="bg-slate-50 rounded-lg p-4 border border-slate-100 h-64 overflow-y-auto">
-            <ul className="space-y-4">
-              {threats.summary.highlights.length > 0 ? (
-                threats.summary.highlights.map((text, idx) => (
-                  <li
-                    key={idx}
-                    className="flex items-start gap-3 text-sm text-slate-700"
-                  >
-                    <span className="mt-0.5 text-blue-500">•</span>
-                    {text}
-                  </li>
-                ))
-              ) : (
-                <li className="text-slate-500 text-sm">
-                  특이사항이 발견되지 않았습니다.
-                </li>
-              )}
-            </ul>
+          {/* 💡 [아래] 구성현황 연계 취약점 원형 그래프 카드 */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between h-[340px]">
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-red-500" /> 취약점 연계 비율
+              현황
+            </h3>
+
+            {pieChartData.length > 0 ? (
+              <div className="flex-1 flex items-center justify-center mt-2">
+                <div className="w-full h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {pieChartData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={
+                              COLORS[entry.name as keyof typeof COLORS] ||
+                              COLORS.INFO
+                            }
+                          />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{
+                          fontSize: "12px",
+                          borderRadius: "8px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      />
+                      <Legend
+                        iconSize={8}
+                        layout="horizontal"
+                        verticalAlign="bottom"
+                        wrapperStyle={{ fontSize: "11px", fontWeight: "bold" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-xs gap-1">
+                <Info className="w-8 h-8 text-slate-200 mb-1" />
+                탐지된 라이브러리 보안 위협이 없습니다.
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* 4. 패키지 인벤토리 테이블 */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-slate-800">
-            패키지 인벤토리{" "}
-            <span className="text-sm font-normal text-slate-500 ml-2">
-              총 {components.length}개
-            </span>
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-6 py-3 font-medium">패키지명</th>
-                <th className="px-6 py-3 font-medium">버전</th>
-                <th className="px-6 py-3 font-medium">유형</th>
-                <th className="px-6 py-3 font-medium">라이선스</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {components.slice(0, 20).map((comp: any, idx: number) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="px-6 py-3 font-medium text-slate-800">
-                    {comp.name}
-                  </td>
-                  <td className="px-6 py-3 text-slate-600">
-                    {comp.version || "-"}
-                  </td>
-                  <td className="px-6 py-3 text-slate-600">
-                    {comp.type || "library"}
-                  </td>
-                  <td className="px-6 py-3 text-slate-600">
-                    {comp.licenses
-                      ?.map((l: any) => l.license?.id || l.license?.name)
-                      .join(", ") || "-"}
-                  </td>
+        {/* 💻 오른쪽 칼럼: 전체 컴포넌트 명세 테이블 리스트 (2/3 면적 차지) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between">
+          <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-slate-500" />
+              익스플로어 컴포넌트 마스터 명세 ({components.length}개 내역)
+            </h3>
+          </div>
+
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 text-slate-500 border-b border-slate-200 font-bold uppercase tracking-wider">
+                  <th className="px-6 py-3.5 font-bold">패키지명</th>
+                  <th className="px-6 py-3.5 font-bold">버전</th>
+                  <th className="px-6 py-3.5 font-bold">유형</th>
+                  <th className="px-6 py-3.5 font-bold">라이선스 규격</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {components.slice(0, 20).map((comp: any, idx: number) => (
+                  <tr
+                    key={idx}
+                    className="hover:bg-slate-50/80 transition-colors"
+                  >
+                    <td className="px-6 py-3 font-bold text-slate-900">
+                      {comp.name}
+                    </td>
+                    <td className="px-6 py-3 text-slate-600 font-mono">
+                      {comp.version || "-"}
+                    </td>
+                    <td className="px-6 py-3 text-slate-500">
+                      <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200 text-[10px] font-bold uppercase">
+                        {comp.type || "library"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-slate-600 font-semibold">
+                      {comp.licenses
+                        ?.map((l: any) => l.license?.id || l.license?.name)
+                        .join(", ") || (
+                        <span className="text-slate-400 font-normal">N/A</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           {components.length > 20 && (
-            <div className="px-6 py-3 text-center text-sm text-slate-500 bg-slate-50 border-t border-slate-100">
-              표시 제한: 상위 20개 패키지
+            <div className="px-6 py-3.5 text-center text-xs text-slate-400 font-medium border-t border-slate-100 bg-slate-50/30">
+              보안 무결성 검증을 위해 상위 20개 핵심 컴포넌트만 대시보드에
+              스크리닝 중입니다.
             </div>
           )}
         </div>
       </div>
+
+      {/* 3. 💡 하단 영역: 상세 보안 취약점 연계 리스트 피드 (findings 매핑) */}
+      {threats && threats.findings && threats.findings.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/80">
+            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-red-500" />
+              보안 취약점 탐지 상세 내역 ({threats.summary.finding_count}건)
+            </h2>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {threats.findings.map((finding: any, idx: number) => {
+              const themeColor =
+                COLORS[finding.severity as keyof typeof COLORS] || COLORS.INFO;
+              return (
+                <div
+                  key={idx}
+                  className="p-5 hover:bg-slate-50/50 transition-colors flex flex-col gap-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="px-2 py-0.5 text-[10px] font-black rounded text-white tracking-wider"
+                        style={{ backgroundColor: themeColor }}
+                      >
+                        {finding.severity}
+                      </span>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        {finding.component_name}{" "}
+                        <span className="text-slate-400 font-mono font-normal text-xs ml-1">
+                          (v{finding.component_version})
+                        </span>
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 border px-2 py-0.5 rounded-md">
+                      {finding.type === "known_vulnerable_component"
+                        ? "보안 결함 식별"
+                        : "컴플라이언스 준수 미흡"}
+                    </span>
+                  </div>
+
+                  <div className="pl-2 border-l-2 border-slate-200 space-y-2 text-xs">
+                    <p className="text-slate-600 font-medium leading-relaxed">
+                      {finding.message}
+                    </p>
+
+                    {/* CVE / 위협 식별자 맵핑 */}
+                    {finding.evidence?.vulnerability_ids && (
+                      <div className="flex flex-wrap gap-1">
+                        {finding.evidence.vulnerability_ids.map(
+                          (vid: string) => (
+                            <span
+                              key={vid}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded shadow-sm font-mono"
+                            >
+                              {vid}
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    )}
+
+                    {/* 조치 권고 사항 가이드 연계 */}
+                    {finding.recommendation && (
+                      <div className="text-slate-600 bg-blue-50/40 p-3 rounded-xl border border-blue-100/70 mt-1">
+                        <span className="text-blue-800 font-bold block mb-0.5 text-[11px]">
+                          💡 안전 패치 권고
+                        </span>
+                        {finding.recommendation}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
