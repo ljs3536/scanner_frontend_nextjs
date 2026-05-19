@@ -1,19 +1,15 @@
 import Header from "@/components/Header";
 
-export default function MainLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* 1. 상단 공통 헤더 */}
+    <div className="flex min-h-screen bg-slate-50">
       <Header />
-
-      {/* 2. 각 페이지의 내용(Dashboard, Scan 등)이 들어갈 자리 */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
-      </main>
+      {/* 왼쪽 사이드바 너비(64)만큼 좌측 여백(pl-64)을 줘야 사이드바와 겹치지 않습니다 */}
+      <main className="flex-1 pl-80 p-8">{children}</main>
     </div>
   );
 }

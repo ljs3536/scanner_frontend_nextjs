@@ -2,88 +2,67 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import {
+  LayoutDashboard,
+  Shield,
+  Layers,
+  LogOut,
+  Cpu,
+  User,
+} from "lucide-react";
 
-export default function Header() {
+export default function Sidebar() {
+  const pathname = usePathname();
   const router = useRouter();
-  const pathname = usePathname(); // 현재 경로에 따라 탭 하이라이트 처리를 위해 사용
-  const [userId, setUserId] = useState<string | null>("");
 
-  useEffect(() => {
-    // 로컬 스토리지에서 유저 아이디 가져오기
-    setUserId(localStorage.getItem("user_id"));
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user_id");
-    localStorage.removeItem("role");
-    router.push("/");
-  };
+  const menuItems = [
+    { name: "대시보드", href: "/dashboard", icon: LayoutDashboard },
+    { name: "소스코드 스캔", href: "/scan", icon: Shield },
+    { name: "SBOM 명세", href: "/scans", icon: Layers },
+  ];
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          {/* 로고 & 네비게이션 메뉴 */}
-          <div className="flex items-center gap-8">
-            <div
-              className="flex-shrink-0 flex items-center cursor-pointer"
-              onClick={() => router.push("/dashboard")}
-            >
-              <span className="text-xl font-extrabold text-slate-800">
-                🛡️ Security Scanner
-              </span>
-            </div>
-            <nav className="hidden md:flex space-x-2">
-              <Link
-                href="/dashboard"
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  pathname.includes("/dashboard")
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                대시보드
-              </Link>
-              <Link
-                href="/scan"
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  pathname.includes("/scan")
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                스캔 및 관리
-              </Link>
-              <Link
-                href="/scans"
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  pathname.includes("/scans")
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                스캔 목록
-              </Link>
-            </nav>
-          </div>
-
-          {/* 유저 프로필 & 로그아웃 버튼 */}
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-slate-600 font-medium">
-              <span className="text-blue-600 font-bold">{userId}</span> 님
-            </div>
-            <div className="h-4 w-px bg-slate-300"></div> {/* 구분선 */}
-            <button
-              onClick={handleLogout}
-              className="text-sm px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-medium rounded-lg transition-colors"
-            >
-              로그아웃
-            </button>
-          </div>
+    <aside className="w-64 bg-slate-900 h-screen flex flex-col fixed left-0 top-0 text-slate-300">
+      {/* 로고 영역 */}
+      <div className="p-6 border-b border-slate-800">
+        <div className="flex items-center gap-2 text-blue-400">
+          <Cpu className="w-6 h-6" />
+          <span className="font-bold text-white tracking-tight">
+            Security Platform
+          </span>
         </div>
       </div>
-    </header>
+
+      {/* 메뉴 영역 */}
+      <nav className="flex-1 p-4 space-y-2">
+        {menuItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              pathname === item.href
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
+                : "hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <item.icon className="w-5 h-5" />
+            {item.name}
+          </Link>
+        ))}
+      </nav>
+
+      {/* 하단 로그아웃 */}
+      <div className="p-4 border-t border-slate-800">
+        <button
+          onClick={() => {
+            localStorage.clear();
+            router.push("/");
+          }}
+          className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-400 hover:text-red-400 transition"
+        >
+          <LogOut className="w-5 h-5" /> 로그아웃
+        </button>
+      </div>
+    </aside>
   );
 }
