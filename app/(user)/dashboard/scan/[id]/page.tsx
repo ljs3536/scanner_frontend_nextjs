@@ -428,7 +428,7 @@ export default function AdvancedScanReportPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleExecuteAiAdvisory("explain")}
-                    disabled={false}
+                    disabled={isAiLoading}
                     className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition shadow-sm ${
                       aiActiveTab === "explain" && currentActiveContent
                         ? "bg-purple-600 text-white border-purple-600"
@@ -440,7 +440,7 @@ export default function AdvancedScanReportPage() {
                   </button>
                   <button
                     onClick={() => handleExecuteAiAdvisory("fix")}
-                    disabled={false}
+                    disabled={isAiLoading}
                     className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition shadow-sm ${
                       aiActiveTab === "fix" && currentActiveContent
                         ? "bg-indigo-600 text-white border-indigo-600"
