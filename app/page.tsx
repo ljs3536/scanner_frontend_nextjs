@@ -19,7 +19,7 @@ export default function LoginPage() {
     try {
       // 1. FastAPI 로그인 엔드포인트 호출
       const response = await api.post("/auth/login", {
-        user_id: userId,
+        userId: userId,
         password: password,
         email: "demo@example.com",
       });
