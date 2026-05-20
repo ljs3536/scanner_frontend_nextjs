@@ -2,7 +2,13 @@ import axios from "axios";
 
 // FastAPI 백엔드 주소 기본 설정
 const api = axios.create({
-  baseURL: "http://192.168.1.103:8000/api",
+  // 💡 환경변수가 있으면 그걸 쓰고, 없으면 기본값 8000을 쓰도록 설정
+  baseURL:
+    process.env.NEXT_PUBLIC_API_URL + "/api" ||
+    "http://localhost:8010" + "/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 // 요청(Request)을 보내기 직전에 가로채서 JWT 토큰을 헤더에 심어주는 로직

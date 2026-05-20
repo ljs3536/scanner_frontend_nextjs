@@ -18,7 +18,7 @@ export default function Sidebar() {
   const menuItems = [
     { name: "대시보드", href: "/dashboard", icon: LayoutDashboard },
     { name: "소스코드 스캔", href: "/scan", icon: Shield },
-    { name: "SBOM 명세", href: "/scans", icon: Layers },
+    { name: "스캔 내역", href: "/scans", icon: Layers },
   ];
 
   return (
